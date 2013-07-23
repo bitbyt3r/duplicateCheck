@@ -1,5 +1,11 @@
 #!/usr/bin/python -u
 
+import os
+import re
+import sys
+import rpm
+import ConfigParser
+
 # This program will scan through a bunch of folders in a repository, and
 # remove duplicate packages. The idea is that redhat provides binaries 
 # that we don't want, but may interefere with their replacements.
@@ -94,12 +100,64 @@ def main():
     duplicates = getDups(i)
     priorities = getPriorities(i)
     i['ideal_packages'] = []
-    for j in duplicates:
+    for j in duplicates.keys():
       for sortMethod in priorities:
-        idealPackage = sortMethod(j):
+        idealPackage = sortMethod(duplicates[j])
         if idealPackage:
           i['ideal_packages'].append(idealPackage)
           break
     for j in i['ideal_packages']:
+      print j
       
+
+def getDups(repository):
+  files = {}
+  ts = rpm.TransactionSet()
+  allFiles = {}
+  for root, dirs, files in os.walk(repository['location']):
+    for file in files:
+      allFiles[os.path.join(root, file)] = readRpmHeader(ts, os.path.join(root, file))
+  fileNames = [allFiles[i]['name'] for i in allFiles.keys()]
+  setNames = list(set(fileNames))
+  for i in setNames:
+    fileNames.remove(i)
+  duplicates = {}
+  for i in fileNames:
+    for j in allFiles.keys():
+      if allFiles[j]['name'] == i:
+        duplicates[i].append((j, allFiles[j]))
+        print i, "duplicates", j
+  return duplicates
+
+def readRpmHeader(ts, filename):
+    """ Read an rpm header. """
+    fd = os.open(filename, os.O_RDONLY)
+    h = None
+    try:
+        h = ts.hdrFromFdno(fd)
+    except rpm.error, e:
+        if str(e) == "public key not available":
+            print str(e)
+        if str(e) == "public key not trusted":
+            print str(e)
+        if str(e) == "error reading package header":
+            print str(e)
+        h = None
+    finally:
+        os.close(fd)
+    return h
+
+def getPriorities(repository):
+  return [sortByAge, sortByVersion, sortByLocation]
+
+def sortByAge(packages):
+  return packages[0]
+
+def sortByVersion(packages):
+  return packages[0]
+
+def sortByLocation(packages):
+  return packages[0]      
+
+
 main()
