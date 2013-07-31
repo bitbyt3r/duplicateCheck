@@ -102,12 +102,12 @@ def main():
     i['ideal_packages'] = []
     for j in duplicates.keys():
       for sortMethod in priorities:
-        idealPackage = sortMethod(duplicates[j])
+        idealPackage = sortMethod(duplicates[j], i)
         if idealPackage:
           i['ideal_packages'].append(idealPackage)
           break
     for j in i['ideal_packages']:
-      print j
+      print j[0], j[1]['version']
       
 
 def getDups(repository):
@@ -116,7 +116,8 @@ def getDups(repository):
   allFiles = {}
   for root, dirs, files in os.walk(repository['location']):
     for file in files:
-      allFiles[os.path.join(root, file)] = readRpmHeader(ts, os.path.join(root, file))
+      if readRpmHeader(ts, os.path.join(root, file)):
+        allFiles[os.path.join(root, file)] = readRpmHeader(ts, os.path.join(root, file))
   fileNames = [allFiles[i]['name'] for i in allFiles.keys()]
   setNames = list(set(fileNames))
   for i in setNames:
@@ -125,12 +126,15 @@ def getDups(repository):
   for i in fileNames:
     for j in allFiles.keys():
       if allFiles[j]['name'] == i:
-        duplicates[i].append((j, allFiles[j]))
-        print i, "duplicates", j
+        if i in duplicates.keys():
+          duplicates[i].append((j, allFiles[j]))
+        else:
+          duplicates[i] = [(j, allFiles[j])]
   return duplicates
 
 def readRpmHeader(ts, filename):
     """ Read an rpm header. """
+    ts.setVSFlags(rpm._RPMVSF_NOSIGNATURES)
     fd = os.open(filename, os.O_RDONLY)
     h = None
     try:
@@ -150,14 +154,16 @@ def readRpmHeader(ts, filename):
 def getPriorities(repository):
   return [sortByAge, sortByVersion, sortByLocation]
 
-def sortByAge(packages):
+def sortByAge(packages, repository):
   return packages[0]
 
-def sortByVersion(packages):
-  return packages[0]
+def sortByVersion(packages, repository):
+  values = [x.dsOfHeader() for x in packages]
+  return __bestByValues(packages, values)
 
-def sortByLocation(packages):
+def sortByLocation(packages, repository):
   return packages[0]      
 
-
+def __bestByValues(packages, values):
+  return packages[0]
 main()
